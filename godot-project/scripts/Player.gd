@@ -5,14 +5,16 @@ const MAX_SPEED_X = 256
 const MAX_SPEED_Y = 512
 const GRAVITY = 512
 const JUMP_FORCE = 350
+const ACCEL_CURVE_TIME = 0.25
+const FRICTION_CURVE_TIME = 0.5
 
-#
 export (Curve) var accel_curve
 export (Curve) var friction_curve
 
 var velocity = Vector2()
-var max_speed_reached = 0
-var accel_time = 0
+var move_direction = 0
+var max_speed_reached = 0 #var to save max speed for friction handling
+var accel_time = 0 #vars for curve time position
 var friction_time = 0
 
 #Returns WASD/arrow keys as a Vector2
@@ -30,16 +32,19 @@ func _process(delta):
 	var input_vector = get_input_vector()
 	#If left/right pressed, move, else, friction
 	if (input_vector.x != 0): #accelerate x speed according to accel_curve
+		#handle frame perfect turnarounds keeping accel_time at 1
+		if (input_vector.x != move_direction):
+			accel_time = 0
+		move_direction = sign(input_vector.x)
 		friction_time = 0
-		accel_time += delta
-		var x_direction = sign(input_vector.x)
-		velocity.x = x_direction * MAX_SPEED_X * accel_curve.interpolate(accel_time)
-		max_speed_reached = max(velocity.x, max_speed_reached) #save max speed for friction
+		accel_time += delta / ACCEL_CURVE_TIME
+		velocity.x = move_direction * MAX_SPEED_X * accel_curve.interpolate(accel_time)
+		max_speed_reached = sign(velocity.x) * max(abs(velocity.x), max_speed_reached) #save max speed for friction
 	else:
 		accel_time = 0
-		friction_time += delta
+		friction_time += delta / FRICTION_CURVE_TIME
 		velocity.x = max_speed_reached * friction_curve.interpolate(friction_time)
-		if (friction_time >= 0):
+		if (friction_time >= 1):
 			max_speed_reached = 0
 	#jump
 	if (is_on_floor() and Input.is_action_just_pressed("jump")):
