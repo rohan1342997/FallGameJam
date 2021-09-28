@@ -1,12 +1,15 @@
 extends KinematicBody2D
 class_name Player
 
-const MAX_SPEED_X = 256
-const MAX_SPEED_Y = 512
-const GRAVITY = 512
-const JUMP_FORCE = 350
+signal died
+
+const MAX_SPEED_X = 250
+const MAX_SPEED_Y = 1000
+const GRAVITY = 1000
+const JUMP_FORCE = 500
 const ACCEL_CURVE_TIME = 0.25
 const FRICTION_CURVE_TIME = 0.5
+const MAX_JUMPS = 1
 
 export (Curve) var accel_curve
 export (Curve) var friction_curve
@@ -16,6 +19,13 @@ var move_direction = 0
 var max_speed_reached = 0 #var to save max speed for friction handling
 var accel_time = 0 #vars for curve time position
 var friction_time = 0
+var num_jumps = 0
+var grounded = false
+
+onready var dust_particles = $Particles2D
+onready var spotlight = $Spotlight
+onready var tween = $Tween
+onready var death_sound = $Death
 
 #Returns WASD/arrow keys as a Vector2
 func get_input_vector():
@@ -26,10 +36,22 @@ func get_input_vector():
 	return Vector2(right_input - left_input, down_input - up_input)
 
 func _ready():
-	pass
+	Game.player = self
 
 func _process(delta):
 	var input_vector = get_input_vector()
+	
+	#jump
+	if (Input.is_action_just_pressed("jump")):
+		jump()
+	
+	dust_particles.emitting = false
+	if (is_on_floor()):
+		if (input_vector.x != 0):
+			dust_particles.emitting = true
+			dust_particles.process_material.direction = Vector3(-move_direction, 0, 0)
+		num_jumps = 0
+	
 	#If left/right pressed, move, else, friction
 	if (input_vector.x != 0): #accelerate x speed according to accel_curve
 		#handle frame perfect turnarounds keeping accel_time at 1
@@ -46,17 +68,28 @@ func _process(delta):
 		velocity.x = max_speed_reached * friction_curve.interpolate(friction_time)
 		if (friction_time >= 1):
 			max_speed_reached = 0
-	#jump
-	if (is_on_floor() and Input.is_action_just_pressed("jump")):
-		velocity.y -= JUMP_FORCE
 
 func _physics_process(delta):
 	#Clamp movement speeds in x/y directions
-	if (abs(velocity.x) > MAX_SPEED_X):
-		velocity.x = sign(velocity.x) * MAX_SPEED_X
-	if (abs(velocity.y) > MAX_SPEED_Y):
-		velocity.y = sign(velocity.y) * MAX_SPEED_Y
+	clamp_speed()
 	#gravity
 	velocity.y += GRAVITY * delta
 	#inherited move_and_slide function from kinematicbody2d
 	velocity = move_and_slide(velocity, Vector2.UP)
+
+func jump():
+	if (num_jumps < MAX_JUMPS):
+		global_position.y -= 10
+		velocity.y = -JUMP_FORCE
+		num_jumps += 1
+	print(num_jumps)
+
+func clamp_speed():
+	if (abs(velocity.x) > MAX_SPEED_X):
+		velocity.x = sign(velocity.x) * MAX_SPEED_X
+	if (abs(velocity.y) > MAX_SPEED_Y):
+		velocity.y = sign(velocity.y) * MAX_SPEED_Y
+
+func kill():
+	emit_signal("died")
+	death_sound.play()

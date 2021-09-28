@@ -24,6 +24,10 @@ config/name="FallGameJam"
 run/main_scene="res://scenes/Main.tscn"
 config/icon="res://icon.png"
 
+[autoload]
+
+Game="*res://scripts/Game.gd"
+
 [display]
 
 window/size/width=1920
